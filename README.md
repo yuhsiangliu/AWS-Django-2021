@@ -71,7 +71,7 @@ option_settings:
 ```
 (your-virt-name) C:\your-django-project\> deactivate
 ```
-6. Log into [AWS Management Console](https://aws.amazon.com/console/) then go to **Services>Elastic Beanstalk**. 🔴
+6. Log into [AWS Management Console](https://aws.amazon.com/console/) then go to **Services > Elastic Beanstalk**. 🔴
 > I found it much easier to create an EB application through AWS console. If you wish to use `eb` commands, try `eb init -p "Python 3.8 running on 64bit Amazon Linux 2" your-app-name` then `eb create your-env-name`
 7. Go to **Environments**, then **Create a new environment** 
 8. Choose **Web server environment**, enter your Application/Environment/Domain names. Choose platform **Python/Python 3.8 running on 64bit Amazon Linux 2/Recommended version**
@@ -108,7 +108,80 @@ C:\your-django-project\> eb open
 
 ## Creat an Amazon RDS instance and connect it to your Django application
 
+1. Open the [Elastic Beanstalk console](https://console.aws.amazon.com/elasticbeanstalk), go to **Environments** then choose the enviroment you have created
+2. Go to **Configuration > Database > Edit**
+3. Choose a DB engine, and enter a user name and password. Then click **Apply**
+
+You may choose any egine, here I am using MySQL as an example.
+
+4. Activate the virtual environment and install `mysqlclient`
+```
+C:\your-django-project\>%HOMEPATH%\your-virt-name\Scripts\activate
+(your-virt-name) C:\your-django-project\> pip install mysqlclient
+```
+5. Update your `requirements.txt`
+```
+(your-virt-name) C:\your-django-project\> pip freeze > requirements.txt
+```
+6. (Optional) Remove the version of `mysqlclient` from `requirements.txt` 🔴
+```
+...
+mysqlclient
+...
+```
+> If you encounter any errors later, I highly recommend you to try this.
+7. In directory `.ebextensions\`, create a file `packages.config` with the following content 🔴
+```
+packages:
+  yum:
+    python3-devel: []
+    mariadb-devel: []
+```
+8. In `settings.py`, replace the Database section with the following (Make sure you have `import os`)
+```python3
+if 'RDS_HOSTNAME' in os.environ:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.mysql',
+            'NAME': os.environ['RDS_DB_NAME'],
+            'USER': os.environ['RDS_USERNAME'],
+            'PASSWORD': os.environ['RDS_PASSWORD'],
+            'HOST': os.environ['RDS_HOSTNAME'],
+            'PORT': os.environ['RDS_PORT'],
+        }
+    }
+```
+> You may wish to keep the default SQLite setting so you can test on your local host
+9. Deploy the project, check everything works
+```
+C:\your-django-project\> eb deploy
+```
 
 ## Set static files, make migrations, and create a superuser on AWS
 
-Once you deploy your Django project on AWS, you can check the admin portal `admin/` and likely find out that CSS doesn't work properly. 
+For simplicity, I will do everything at once.
+
+1. If you haven't done so, create an app for your django project
+```
+C:\your-django-project\>%HOMEPATH%\your-virt-name\Scripts\activate
+(your-virt-name) C:\your-django-project\> python manage.py startapp your-app-name
+```
+2. Add your app to `settings.py`
+```python3
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'your-app-name.apps.YourAppNameConfig',
+]
+```
+3. Make migrations
+```
+(your-virt-name) C:\your-django-project\> python manage.py makemigrations your-app-name
+(your-virt-name) C:\your-django-project\> python manage.py migrate
+```
+4. In `your-app-name/`, create a new directory `management` and create a (blank) file named `__init__.py` inside
+5. In `management`, create a new directory `commands` and create a (blank) file named `__init__.py` inside
